@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-angular-config
+  namespace: logistics-system
+data:
+  default.conf: |
+    server {
+        listen 8080;
+        server_name localhost;
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+            root /usr/share/nginx/html;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logistics-frontend
+  namespace: logistics-system
+  labels:
+    app: logistics-frontend
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: logistics-frontend
+  template:
+    metadata:
+      labels:
+        app: logistics-frontend
+    spec:
+      containers:
+      - name: nginx-angular
+        image: quay.io/logistics/logistics-frontend:1.0.0
+        ports:
+        - containerPort: 8080
+          name: http
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        volumeMounts:
+        - name: nginx-config-volume
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: default.conf
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+      volumes:
+      - name: nginx-config-volume
+        configMap:
+          name: nginx-angular-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logistics-frontend-service
+  namespace: logistics-system
+  labels:
+    app: logistics-frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: logistics-frontend
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: logistics-frontend-route
+  namespace: logistics-system
+  labels:
+    app: logistics-frontend
+spec:
+  to:
+    kind: Service
+    name: logistics-frontend-service
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
