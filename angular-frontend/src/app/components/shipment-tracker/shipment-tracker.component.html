@@ -1,0 +1,16 @@
+<div class="tracker-container">
+  <h2>Rastreo de Carga Internacional</h2>
+  <div class="search-box">
+    <input type="number" [ngModel]="searchId()" (ngModelChange)="searchId.set($event)" placeholder="Ingrese ID del envío" />
+    <button (click)="onSearch()" [disabled]="loading()">{{ loading() ? 'Buscando...' : 'Buscar' }}</button>
+  </div>
+  @if (errorMessage()) { <div class="alert alert-error">{{ errorMessage() }}</div> }
+  @if (shipment(); as data) {
+    <div class="shipment-card">
+      <div class="header">
+        <h3>Envío #{{ data.id_envio }}</h3>
+        <span class="badge">{{ data.estado_actual }}</span>
+      </div>
+    </div>
+  }
+</div>
