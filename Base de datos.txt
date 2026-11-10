@@ -1,0 +1,70 @@
+-- 1. Tabla de ubicaciones geográficas (nodos logísticos)
+CREATE TABLE Ubicaciones (
+    id_ubicacion INT PRIMARY KEY,
+    pais VARCHAR(100) NOT NULL,
+    ciudad VARCHAR(100) NOT NULL,
+    codigo_postal VARCHAR(20),
+    puerto_aeropuerto VARCHAR(100) -- Especifica si es un nodo principal
+);
+
+-- 2. Tabla de clientes (remitentes y destinatarios)
+CREATE TABLE Clientes (
+    id_cliente INT PRIMARY KEY,
+    nombre_empresa VARCHAR(150) NOT NULL,
+    tipo_documento VARCHAR(20) NOT NULL,
+    numero_documento VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    telefono VARCHAR(50)
+);
+
+-- 3. Tabla de vehículos / medios de transporte
+CREATE TABLE Vehiculos (
+    id_vehiculo INT PRIMARY KEY,
+    tipo_transporte VARCHAR(50) NOT NULL, -- Marítimo, Aéreo, Terrestre
+    matricula VARCHAR(50) UNIQUE NOT NULL,
+    capacidad_carga_kg DECIMAL(12,2) NOT NULL,
+    estado VARCHAR(50) DEFAULT 'Activo'
+);
+
+-- 4. Tabla principal de envíos (Cabecera)
+CREATE TABLE Envios (
+    id_envio INT PRIMARY KEY,
+    id_remitente INT NOT NULL,
+    id_destinatario INT NOT NULL,
+    id_origen INT NOT NULL,
+    id_destino INT NOT NULL,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_estimada_entrega DATE,
+    peso_kg DECIMAL(10,2) NOT NULL,
+    volumen_m3 DECIMAL(10,2),
+    estado_actual VARCHAR(50) DEFAULT 'Procesando en Origen',
+    FOREIGN KEY (id_remitente) REFERENCES Clientes(id_cliente),
+    FOREIGN KEY (id_destinatario) REFERENCES Clientes(id_cliente),
+    FOREIGN KEY (id_origen) REFERENCES Ubicaciones(id_ubicacion),
+    FOREIGN KEY (id_destino) REFERENCES Ubicaciones(id_ubicacion)
+);
+
+-- 5. Tabla de asignación de rutas/transporte a un envío (Transbordos)
+CREATE TABLE Tramos_Ruta (
+    id_tramo INT PRIMARY KEY,
+    id_envio INT NOT NULL,
+    id_vehiculo INT NOT NULL,
+    id_origen_tramo INT NOT NULL,
+    id_destino_tramo INT NOT NULL,
+    fecha_salida TIMESTAMP,
+    fecha_llegada TIMESTAMP,
+    FOREIGN KEY (id_envio) REFERENCES Envios(id_envio),
+    FOREIGN KEY (id_vehiculo) REFERENCES Vehiculos(id_vehiculo),
+    FOREIGN KEY (id_origen_tramo) REFERENCES Ubicaciones(id_ubicacion),
+    FOREIGN KEY (id_destino_tramo) REFERENCES Ubicaciones(id_ubicacion)
+);
+
+-- 6. Tabla de seguimiento (Tracking / Auditoría)
+CREATE TABLE Seguimiento (
+    id_seguimiento INT PRIMARY KEY,
+    id_envio INT NOT NULL,
+    ubicacion_actual VARCHAR(150) NOT NULL,
+    descripcion_evento VARCHAR(255) NOT NULL,
+    fecha_evento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_envio) REFERENCES Envios(id_envio)
+);
