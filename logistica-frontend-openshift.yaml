@@ -1,0 +1,455 @@
+# =============================================================================
+# GlobalLogix - Frontend React de logística y transporte internacional
+# Despliegue en OpenShift:
+#   oc new-project logistica
+#   oc apply -f logistica-frontend-openshift.yaml
+#   oc get route globallogix -o jsonpath='{.spec.host}'
+#
+# Notas:
+#  - Usa nginx-unprivileged (puerto 8080, compatible con el SCC "restricted" de OpenShift).
+#  - La app React se sirve desde un ConfigMap (React 18 + htm vía CDN, sin build).
+#  - Los datos son de ejemplo (mock). Para conectar a un backend real, reemplaza
+#    los arreglos de app.js por llamadas fetch('/api/...') y añade un proxy en nginx.conf.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: globallogix-nginx-conf
+  labels:
+    app: globallogix
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      server_name _;
+      root /usr/share/nginx/html;
+      index index.html;
+
+      add_header X-Content-Type-Options nosniff;
+      add_header X-Frame-Options SAMEORIGIN;
+
+      location = /healthz {
+        access_log off;
+        return 200 'ok';
+        add_header Content-Type text/plain;
+      }
+
+      location / {
+        try_files $uri $uri/ /index.html;
+      }
+
+      # Ejemplo de proxy hacia un backend (descomentar y ajustar):
+      # location /api/ {
+      #   proxy_pass http://globallogix-api:8080/;
+      # }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: globallogix-web
+  labels:
+    app: globallogix
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="es">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>GlobalLogix · Logística Internacional</title>
+      <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+      <div id="root"></div>
+      <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+      <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+      <script src="https://unpkg.com/htm@3.1.1/dist/htm.umd.js"></script>
+      <script src="app.js"></script>
+    </body>
+    </html>
+  styles.css: |
+    :root {
+      --bg: #f4f6fa; --card: #ffffff; --ink: #14213d; --muted: #6b7a99;
+      --brand: #0b5fff; --brand-2: #00b894; --warn: #f59e0b; --danger: #e5484d;
+      --line: #e3e8f2; --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+    .layout { display: grid; grid-template-columns: 230px 1fr; min-height: 100vh; }
+    .side { background: #0e1b3d; color: #cbd5f0; padding: 20px 14px; }
+    .logo { font-weight: 800; font-size: 20px; color: #fff; padding: 0 10px 20px; }
+    .logo span { color: #5ea0ff; }
+    .nav button { display: flex; gap: 10px; align-items: center; width: 100%; background: none; border: 0; color: inherit; padding: 11px 12px; border-radius: 10px; font-size: 15px; cursor: pointer; text-align: left; }
+    .nav button:hover { background: rgba(255,255,255,.07); }
+    .nav button.on { background: var(--brand); color: #fff; }
+    .main { padding: 26px 30px; overflow-x: hidden; }
+    h1 { margin: 0 0 4px; font-size: 26px; }
+    .sub { color: var(--muted); margin-bottom: 22px; }
+    .grid { display: grid; gap: 16px; }
+    .kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: 18px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; box-shadow: 0 1px 2px rgba(20,33,61,.04); }
+    .kpi .v { font-size: 30px; font-weight: 800; margin-top: 4px; }
+    .kpi .l { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+    .kpi .d { font-size: 13px; margin-top: 4px; color: var(--brand-2); }
+    .two { grid-template-columns: 1.4fr 1fr; }
+    .card h3 { margin: 0 0 14px; font-size: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    td { padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    tr.click { cursor: pointer; }
+    tr.click:hover td { background: #f8faff; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .b-transito { background: #e0ebff; color: #0b4fd6; }
+    .b-aduana { background: #fff1d6; color: #9a6200; }
+    .b-entregado { background: #d9f7ec; color: #0a7a58; }
+    .b-retraso { background: #fde2e3; color: #b3262b; }
+    .b-prep { background: #ece8fb; color: #5b3fc4; }
+    .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; min-width: 90px; }
+    .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--brand), #5ea0ff); }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    input, select, textarea { font: inherit; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); }
+    input:focus, select:focus { outline: 2px solid #b9d0ff; border-color: var(--brand); }
+    .btn { background: var(--brand); color: #fff; border: 0; padding: 10px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; font: inherit; font-weight: 600; }
+    .btn:hover { filter: brightness(1.08); }
+    .btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    .form { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+    .timeline { list-style: none; margin: 14px 0 0; padding: 0 0 0 18px; border-left: 2px solid var(--line); }
+    .timeline li { position: relative; margin-bottom: 16px; padding-left: 14px; }
+    .timeline li::before { content: ""; position: absolute; left: -25px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--brand); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--brand); }
+    .timeline li.pend::before { background: #fff; box-shadow: 0 0 0 2px var(--line); }
+    .timeline small { color: var(--muted); display: block; }
+    .chart { display: flex; align-items: flex-end; gap: 14px; height: 180px; padding-top: 10px; }
+    .chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+    .chart .col i { width: 100%; max-width: 44px; background: linear-gradient(180deg, #5ea0ff, var(--brand)); border-radius: 8px 8px 0 0; }
+    .chart .col span { font-size: 12px; color: var(--muted); }
+    .chart .col b { font-size: 12px; }
+    .toast { position: fixed; right: 24px; bottom: 24px; background: #0e1b3d; color: #fff; padding: 12px 18px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .route { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+    .route em { color: var(--muted); font-style: normal; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .side { display: flex; overflow-x: auto; padding: 10px; }
+      .logo { display: none; }
+      .nav { display: flex; gap: 6px; }
+      .nav button { white-space: nowrap; }
+      .two { grid-template-columns: 1fr; }
+      .main { padding: 18px 14px; }
+      table { display: block; overflow-x: auto; }
+    }
+  app.js: |
+    const { useState, useMemo } = React;
+    const html = htm.bind(React.createElement);
+
+    const MODES = { Maritimo: "🚢 Marítimo", Aereo: "✈️ Aéreo", Terrestre: "🚚 Terrestre", Ferroviario: "🚆 Ferroviario" };
+    const STATES = {
+      prep: { t: "En preparación", c: "b-prep" },
+      transito: { t: "En tránsito", c: "b-transito" },
+      aduana: { t: "En aduana", c: "b-aduana" },
+      retraso: { t: "Retrasado", c: "b-retraso" },
+      entregado: { t: "Entregado", c: "b-entregado" },
+    };
+
+    const INITIAL = [
+      { id: "GLX-240001", from: "Shanghái, CN", to: "Cartagena, CO", mode: "Maritimo", cargo: "Electrónica", kg: 18500, st: "transito", eta: "2026-11-28", prog: 62,
+        ev: [["2026-10-30", "Salida de puerto de Shanghái", 1], ["2026-11-06", "Tránsito por Canal de Panamá", 1], ["2026-11-28", "Llegada a Cartagena", 0]] },
+      { id: "GLX-240002", from: "Róterdam, NL", to: "Buenos Aires, AR", mode: "Maritimo", cargo: "Maquinaria industrial", kg: 42000, st: "aduana", eta: "2026-11-14", prog: 90,
+        ev: [["2026-10-18", "Carga embarcada en Róterdam", 1], ["2026-11-09", "Arribo a puerto de Buenos Aires", 1], ["2026-11-14", "Liberación aduanera", 0]] },
+      { id: "GLX-240003", from: "Miami, US", to: "Bogotá, CO", mode: "Aereo", cargo: "Insumos médicos", kg: 850, st: "entregado", eta: "2026-11-09", prog: 100,
+        ev: [["2026-11-08", "Despacho en MIA", 1], ["2026-11-09", "Aterrizaje en El Dorado", 1], ["2026-11-09", "Entrega al destinatario", 1]] },
+      { id: "GLX-240004", from: "Hamburgo, DE", to: "Ciudad de México, MX", mode: "Maritimo", cargo: "Autopartes", kg: 27300, st: "retraso", eta: "2026-11-22", prog: 48,
+        ev: [["2026-10-25", "Salida de Hamburgo", 1], ["2026-11-05", "Retraso por congestión portuaria", 1], ["2026-11-22", "Llegada estimada a Veracruz", 0]] },
+      { id: "GLX-240005", from: "Dubái, AE", to: "Madrid, ES", mode: "Aereo", cargo: "Textiles", kg: 3200, st: "transito", eta: "2026-11-12", prog: 75,
+        ev: [["2026-11-10", "Despacho en DXB", 1], ["2026-11-12", "Llegada estimada a MAD", 0]] },
+      { id: "GLX-240006", from: "Lima, PE", to: "Santiago, CL", mode: "Terrestre", cargo: "Productos agrícolas", kg: 14800, st: "transito", eta: "2026-11-15", prog: 40,
+        ev: [["2026-11-09", "Salida de centro de acopio Lima", 1], ["2026-11-15", "Entrega en Santiago", 0]] },
+      { id: "GLX-240007", from: "Busan, KR", to: "Los Ángeles, US", mode: "Maritimo", cargo: "Vehículos", kg: 51000, st: "prep", eta: "2026-12-10", prog: 5,
+        ev: [["2026-11-11", "Documentación en revisión", 1], ["2026-12-10", "Llegada estimada a Long Beach", 0]] },
+      { id: "GLX-240008", from: "Duisburgo, DE", to: "Chongqing, CN", mode: "Ferroviario", cargo: "Químicos (no peligrosos)", kg: 22000, st: "transito", eta: "2026-11-30", prog: 35,
+        ev: [["2026-11-03", "Salida de terminal de Duisburgo", 1], ["2026-11-30", "Llegada a Chongqing", 0]] },
+    ];
+
+    const ROUTES = [
+      { name: "Asia – Latinoamérica", mode: "Maritimo", days: 32, hubs: "Shanghái → Panamá → Cartagena", load: 82 },
+      { name: "Europa – Cono Sur", mode: "Maritimo", days: 26, hubs: "Róterdam → Santos → Buenos Aires", load: 67 },
+      { name: "Norteamérica – Andes", mode: "Aereo", days: 2, hubs: "Miami → Bogotá → Lima", load: 74 },
+      { name: "Golfo – Europa", mode: "Aereo", days: 1, hubs: "Dubái → Madrid", load: 58 },
+      { name: "Nueva Ruta de la Seda", mode: "Ferroviario", days: 18, hubs: "Duisburgo → Chongqing", load: 71 },
+      { name: "Corredor Pacífico Sur", mode: "Terrestre", days: 6, hubs: "Lima → Arica → Santiago", load: 49 },
+    ];
+
+    const MONTHLY = [["Jun", 310], ["Jul", 365], ["Ago", 342], ["Sep", 410], ["Oct", 448], ["Nov", 392]];
+
+    function Badge({ s }) {
+      const x = STATES[s];
+      return html`<span className=${"badge " + x.c}>${x.t}</span>`;
+    }
+
+    function Kpi({ l, v, d }) {
+      return html`<div className="card kpi"><div className="l">${l}</div><div className="v">${v}</div><div className="d">${d}</div></div>`;
+    }
+
+    function Dashboard({ data, open }) {
+      const active = data.filter(s => s.st !== "entregado").length;
+      const late = data.filter(s => s.st === "retraso").length;
+      const tons = Math.round(data.reduce((a, s) => a + s.kg, 0) / 1000);
+      const max = Math.max(...MONTHLY.map(m => m[1]));
+      return html`<div>
+        <h1>Panel de control</h1>
+        <div className="sub">Visión global de operaciones internacionales · actualizado hoy</div>
+        <div className="grid kpis">
+          <${Kpi} l="Envíos activos" v=${active} d="▲ 12% vs. mes anterior" />
+          <${Kpi} l="Carga en movimiento" v=${tons + " t"} d="8 países de origen" />
+          <${Kpi} l="Entregas a tiempo" v="94,2%" d="▲ 1,8 pts" />
+          <${Kpi} l="Incidencias" v=${late} d="Requieren seguimiento" />
+        </div>
+        <div className="grid two">
+          <div className="card">
+            <h3>Envíos recientes</h3>
+            <table>
+              <thead><tr><th>ID</th><th>Ruta</th><th>Estado</th><th>Avance</th></tr></thead>
+              <tbody>
+                ${data.slice(0, 6).map(s => html`<tr key=${s.id} className="click" onClick=${() => open(s.id)}>
+                  <td><b>${s.id}</b></td><td>${s.from} → ${s.to}</td><td><${Badge} s=${s.st} /></td>
+                  <td><div className="bar"><i style=${{ width: s.prog + "%" }}></i></div></td>
+                </tr>`)}
+              </tbody>
+            </table>
+          </div>
+          <div className="card">
+            <h3>Toneladas movilizadas (2026)</h3>
+            <div className="chart">
+              ${MONTHLY.map(m => html`<div className="col" key=${m[0]}><b>${m[1]}</b><i style=${{ height: (m[1] / max) * 130 + "px" }}></i><span>${m[0]}</span></div>`)}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function Shipments({ data, open }) {
+      const [q, setQ] = useState("");
+      const [st, setSt] = useState("");
+      const [mode, setMode] = useState("");
+      const rows = useMemo(() => data.filter(s =>
+        (!st || s.st === st) && (!mode || s.mode === mode) &&
+        (s.id + s.from + s.to + s.cargo).toLowerCase().includes(q.toLowerCase())), [data, q, st, mode]);
+      return html`<div>
+        <h1>Envíos</h1>
+        <div className="sub">${rows.length} de ${data.length} envíos</div>
+        <div className="toolbar">
+          <input placeholder="Buscar por ID, ciudad o carga…" value=${q} onInput=${e => setQ(e.target.value)} style=${{ minWidth: 260 }} />
+          <select value=${st} onChange=${e => setSt(e.target.value)}>
+            <option value="">Todos los estados</option>
+            ${Object.entries(STATES).map(([k, v]) => html`<option key=${k} value=${k}>${v.t}</option>`)}
+          </select>
+          <select value=${mode} onChange=${e => setMode(e.target.value)}>
+            <option value="">Todos los modos</option>
+            ${Object.entries(MODES).map(([k, v]) => html`<option key=${k} value=${k}>${v}</option>`)}
+          </select>
+        </div>
+        <div className="card">
+          <table>
+            <thead><tr><th>ID</th><th>Origen → Destino</th><th>Modo</th><th>Carga</th><th>Peso (kg)</th><th>ETA</th><th>Estado</th></tr></thead>
+            <tbody>
+              ${rows.map(s => html`<tr key=${s.id} className="click" onClick=${() => open(s.id)}>
+                <td><b>${s.id}</b></td><td>${s.from} → ${s.to}</td><td>${MODES[s.mode]}</td><td>${s.cargo}</td>
+                <td>${s.kg.toLocaleString("es-CO")}</td><td>${s.eta}</td><td><${Badge} s=${s.st} /></td>
+              </tr>`)}
+              ${rows.length === 0 && html`<tr><td colSpan="7" style=${{ textAlign: "center", color: "var(--muted)" }}>Sin resultados</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    }
+
+    function Tracking({ data, initial }) {
+      const [code, setCode] = useState(initial || "");
+      const [q, setQ] = useState(initial || "");
+      const s = data.find(x => x.id.toLowerCase() === q.trim().toLowerCase());
+      return html`<div>
+        <h1>Rastreo de envíos</h1>
+        <div className="sub">Ingresa el número de guía para ver el estado en tiempo real</div>
+        <div className="toolbar">
+          <input placeholder="Ej: GLX-240001" value=${code} onInput=${e => setCode(e.target.value)} onKeyDown=${e => e.key === "Enter" && setQ(code)} style=${{ minWidth: 260 }} />
+          <button className="btn" onClick=${() => setQ(code)}>Rastrear</button>
+        </div>
+        ${q && !s && html`<div className="card">No se encontró el envío <b>${q}</b>.</div>`}
+        ${s && html`<div className="card">
+          <div className="route"><span>${s.from}</span><em>→</em><span>${s.to}</span> <${Badge} s=${s.st} /></div>
+          <div className="sub" style=${{ margin: "6px 0 14px" }}>${s.id} · ${MODES[s.mode]} · ${s.cargo} · ${s.kg.toLocaleString("es-CO")} kg · ETA ${s.eta}</div>
+          <div className="bar"><i style=${{ width: s.prog + "%" }}></i></div>
+          <ul className="timeline">
+            ${s.ev.map((e, i) => html`<li key=${i} className=${e[2] ? "" : "pend"}><b>${e[1]}</b><small>${e[0]}${e[2] ? "" : " (estimado)"}</small></li>`)}
+          </ul>
+        </div>`}
+      </div>`;
+    }
+
+    function Routes() {
+      return html`<div>
+        <h1>Rutas y corredores</h1>
+        <div className="sub">Capacidad y tiempos de tránsito por corredor internacional</div>
+        <div className="grid" style=${{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+          ${ROUTES.map(r => html`<div className="card" key=${r.name}>
+            <h3>${r.name}</h3>
+            <div>${MODES[r.mode]} · <b>${r.days}</b> días</div>
+            <div className="sub" style=${{ margin: "6px 0 12px" }}>${r.hubs}</div>
+            <div style=${{ fontSize: 13, color: "var(--muted)", marginBottom: 6 }}>Ocupación: ${r.load}%</div>
+            <div className="bar"><i style=${{ width: r.load + "%" }}></i></div>
+          </div>`)}
+        </div>
+      </div>`;
+    }
+
+    function NewShipment({ onCreate }) {
+      const empty = { from: "", to: "", mode: "Maritimo", cargo: "", kg: "", eta: "" };
+      const [f, setF] = useState(empty);
+      const set = k => e => setF({ ...f, [k]: e.target.value });
+      const ok = f.from && f.to && f.cargo && f.kg > 0 && f.eta;
+      const submit = e => { e.preventDefault(); if (ok) { onCreate(f); setF(empty); } };
+      return html`<div>
+        <h1>Nuevo envío</h1>
+        <div className="sub">Registra una orden de transporte internacional</div>
+        <form className="card" onSubmit=${submit}>
+          <div className="grid form">
+            <label>Origen<input value=${f.from} onInput=${set("from")} placeholder="Ciudad, País" /></label>
+            <label>Destino<input value=${f.to} onInput=${set("to")} placeholder="Ciudad, País" /></label>
+            <label>Modo de transporte
+              <select value=${f.mode} onChange=${set("mode")}>${Object.entries(MODES).map(([k, v]) => html`<option key=${k} value=${k}>${v}</option>`)}</select>
+            </label>
+            <label>Tipo de carga<input value=${f.cargo} onInput=${set("cargo")} placeholder="Ej: Maquinaria" /></label>
+            <label>Peso (kg)<input type="number" min="1" value=${f.kg} onInput=${set("kg")} /></label>
+            <label>Fecha estimada de entrega<input type="date" value=${f.eta} onInput=${set("eta")} /></label>
+          </div>
+          <div style=${{ marginTop: 18, display: "flex", gap: 10 }}>
+            <button className="btn" type="submit" disabled=${!ok} style=${{ opacity: ok ? 1 : .5 }}>Crear envío</button>
+            <button className="btn ghost" type="button" onClick=${() => setF(empty)}>Limpiar</button>
+          </div>
+        </form>
+      </div>`;
+    }
+
+    function App() {
+      const [tab, setTab] = useState("panel");
+      const [data, setData] = useState(INITIAL);
+      const [sel, setSel] = useState("");
+      const [toast, setToast] = useState("");
+      const open = id => { setSel(id); setTab("rastreo"); };
+      const create = f => {
+        const id = "GLX-" + (240001 + data.length);
+        setData([{ id, from: f.from, to: f.to, mode: f.mode, cargo: f.cargo, kg: Number(f.kg), st: "prep", eta: f.eta, prog: 0,
+          ev: [[new Date().toISOString().slice(0, 10), "Orden registrada", 1], [f.eta, "Entrega estimada", 0]] }, ...data]);
+        setToast("Envío " + id + " creado correctamente");
+        setTimeout(() => setToast(""), 3000);
+        setTab("envios");
+      };
+      const items = [["panel", "📊", "Panel"], ["envios", "📦", "Envíos"], ["rastreo", "📍", "Rastreo"], ["rutas", "🌐", "Rutas"], ["nuevo", "➕", "Nuevo envío"]];
+      return html`<div className="layout">
+        <aside className="side">
+          <div className="logo">Global<span>Logix</span></div>
+          <nav className="nav">
+            ${items.map(([k, i, t]) => html`<button key=${k} className=${tab === k ? "on" : ""} onClick=${() => { if (k !== "rastreo") setSel(""); setTab(k); }}><span>${i}</span>${t}</button>`)}
+          </nav>
+        </aside>
+        <main className="main">
+          ${tab === "panel" && html`<${Dashboard} data=${data} open=${open} />`}
+          ${tab === "envios" && html`<${Shipments} data=${data} open=${open} />`}
+          ${tab === "rastreo" && html`<${Tracking} key=${sel} data=${data} initial=${sel} />`}
+          ${tab === "rutas" && html`<${Routes} />`}
+          ${tab === "nuevo" && html`<${NewShipment} onCreate=${create} />`}
+        </main>
+        ${toast && html`<div className="toast">${toast}</div>`}
+      </div>`;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(html`<${App} />`);
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: globallogix
+  labels:
+    app: globallogix
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: globallogix
+  template:
+    metadata:
+      labels:
+        app: globallogix
+    spec:
+      containers:
+        - name: web
+          image: docker.io/nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: web
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+      volumes:
+        - name: web
+          configMap:
+            name: globallogix-web
+        - name: nginx-conf
+          configMap:
+            name: globallogix-nginx-conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: globallogix
+  labels:
+    app: globallogix
+spec:
+  selector:
+    app: globallogix
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: globallogix
+  labels:
+    app: globallogix
+spec:
+  to:
+    kind: Service
+    name: globallogix
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
